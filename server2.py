@@ -1,47 +1,74 @@
-import socket
+import http.server
+import socketserver
 
-PORT = 8091
-IP = "212.128.255.132"
-MAX_OPEN_REQUESTS = 5
-SERVICE_PRICE_EUROS = 20
-# RMB is the China currency: Renminbi is the currency, Yuan is the unit
-SERVICE_PRICE_RM = SERVICE_PRICE_EUROS/0.13
-SERVICE_PRICE_DOLLARS = SERVICE_PRICE_EUROS * 1.22
+# -- Puerto donde lanzar el servidor
+PORT = 8003
 
 
+# Clase con nuestro manejador. Es una clase derivada de BaseHTTPRequestHandler
+# Esto significa que "hereda" todos los metodos de esta clase. Y los que
+# nosotros consideremos los podemos reemplazar por los nuestros
+class testHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
 
-def process_client(clientsocket):
-    print(clientsocket)
-    send_message = "Hello from the server: %i€ needed\n" % SERVICE_PRICE_EUROS
-    # utf8 supports all lanaguages chars
-    send_message += "你好从服务器：需要: %i¥ 需要\n" % SERVICE_PRICE_RM
-    send_message += "Hello from the server: %i$ needed\n" % SERVICE_PRICE_DOLLARS
-    # Serializing the data to be transmitted
-    send_bytes = str.encode(send_message)
-    # We must write bytes, not a string
-    clientsocket.send(send_bytes)
-    clientsocket.close()
+    # GET. Este metodo se invoca automaticamente cada vez que hay una
+    # peticion GET por HTTP. El recurso que nos solicitan se encuentra
+    # en self.path
+    def do_GET(self):
+
+        # La primera linea del mensaje de respuesta es el
+        # status. Indicamos que OK
+        self.send_response(200)
+
+        # En las siguientes lineas de la respuesta colocamos las
+        # cabeceras necesarias para que el cliente entienda el
+        # contenido que le enviamos (que sera HTML)
+        self.send_header('Content-type', 'application/json')
+        self.end_headers()
+
+        # Este es el mensaje que enviamos al cliente: un texto y
+        # el recurso solicitado
+        if self.path == "/":
+            FILE_HTML = "green.html"
+        elif self.path == "/blue":
+            FILE_HTML = "blue.html"
+        elif self.path == "/data.txt":
+            FILE_HTML = "data.txt"
+        elif self.path == "/data2.txt":
+            FILE_HTML = "data2.txt"
+        else:
+            FILE_HTML = "pink.html"
 
 
-# create an INET, STREAMing socket
-serversocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-# bind the socket to a public host, and a well-known port
-# hostname = socket.gethostname()
-# Let's use better the local interface name
-hostname = IP
+        with open(FILE_HTML, "r") as f:
+            contenido = f.read()
+
+        #message = "Hello world! " + self.path
+
+        # Enviar el mensaaje completo
+        self.wfile.write(bytes(contenido, "utf8"))
+        print("File served!")
+        return
+
+
+# ----------------------------------
+# El servidor comienza a aqui
+# ----------------------------------
+# Establecemos como manejador nuestra propia clase
+Handler = testHTTPRequestHandler
+
+# -- Configurar el socket del servidor, para esperar conexiones de clientes
+httpd = socketserver.TCPServer(("", PORT), Handler)
+print("serving at port", PORT)
+
+# Entrar en el bucle principal
+# Las peticiones se atienden desde nuestro manejador
+# Cada vez que se ocurra un "GET" se invoca al metodo do_GET de
+# nuestro manejador
 try:
-    serversocket.bind((hostname, PORT))
-    # become a server socket
-    # MAX_OPEN_REQUESTS connect requests before refusing outside connections
-    serversocket.listen(MAX_OPEN_REQUESTS)
+    httpd.serve_forever()
+except KeyboardInterrupt:
+    print("")
+    print("Interrumpido por el usuario")
 
-    while True:
-        # accept connections from outside
-        print("Waiting for connections at %s %i" % (hostname, PORT))
-        (clientsocket, address) = serversocket.accept()
-        # now do something with the clientsocket
-        # in this case, we'll pretend this is a non threaded server
-        process_client(clientsocket)
-
-except socket.error:
-    print("Problemas using port %i. Do you have permission?" % PORT)
+print("")
+print("Servidor parado")
